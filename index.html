@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOP & Packing Standard Viewer</title>
+    <!-- Tailwind CSS untuk Desain -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & Babel untuk menjalankan React langsung di Browser -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        iframe { border: none; width: 100%; height: 100%; min-height: 500px; background: #f8fafc; }
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        // URL API Google Apps Script
+        const API_URL = "https://script.google.com/macros/s/AKfycbyHcK8rAGNjYlM4_8iQ8fz1vV8mhHvkgqPP64589EDTH5xBv2u_s3r6mXVJPPLwlA6-/exec";
+
+        function App() {
+            const [customers, setCustomers] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
+            const [searchTerm, setSearchTerm] = useState("");
+            const [selectedCust, setSelectedCust] = useState(null);
+            const [viewType, setViewType] = useState("Link_Proses"); // Default: Link_Proses
+
+            // Ambil data dari Google Sheets saat aplikasi dibuka
+            useEffect(() => {
+                fetchData();
+            }, []);
+
+            const fetchData = async () => {
+                try {
+                    setLoading(true);
+                    const response = await fetch(API_URL);
+                    const data = await response.json();
+                    setCustomers(data);
+                    setLoading(false);
+                } catch (err) {
+                    console.error("Error fetching data:", err);
+                    setError("Gagal mengambil data. Pastikan Apps Script sudah di-deploy sebagai Web App dengan akses 'Anyone'.");
+                    setLoading(false);
+                }
+            };
+
+            /**
+             * Fungsi formatDriveLink yang diperkuat.
+             * Mengambil ID unik file dan mengembalikannya dalam format preview yang stabil.
+             */
+            const formatDriveLink = (url) => {
+                if (!url || typeof url !== 'string') return "";
+                
+                // Cek jika ini adalah link Google Drive
+                if (url.includes("drive.google.com")) {
+                    let fileId = "";
+                    
+                    // Pola 1: /file/d/[ID]/view
+                    if (url.includes("/d/")) {
+                        const parts = url.split("/d/");
+                        if (parts.length > 1) {
+                            fileId = parts[1].split("/")[0].split("?")[0];
+                        }
+                    } 
+                    // Pola 2: id=[ID]
+                    else if (url.includes("id=")) {
+                        const parts = url.split("id=");
+                        if (parts.length > 1) {
+                            fileId = parts[1].split("&")[0];
+                        }
+                    }
+                    
+                    if (fileId) {
+                        return `https://drive.google.com/file/d/${fileId}/preview`;
+                    }
+                }
+                
+                return url; // Jika bukan link drive atau gagal ekstrak, kirim apa adanya
+            };
+
+            // Filter pencarian customer
+            const filteredCustomers = useMemo(() => {
+                return customers.filter(c => 
+                    c.Customer_Name && c.Customer_Name.toLowerCase().includes(searchTerm.toLowerCase())
+                );
+            }, [customers, searchTerm]);
+
+            // Menentukan teks peringatan/note
+            const currentWarning = useMemo(() => {
+                if (!selectedCust) return "";
+                return viewType === "Link_Proses" 
+                    ? (selectedCust.Warning_Note_Proses || "STANDAR NORMAL PROSES")
+                    : (selectedCust.Warning_Note_Packing || "STANDAR NORMAL PACKING");
+            }, [selectedCust, viewType]);
+
+            return (
+                <div className="flex flex-col h-screen">
+                    {/* HEADER */}
+                    <header className="bg-slate-800 text-white p-4 shadow-lg flex justify-between items-center px-8">
+                        <div>
+                            <h1 className="text-xl font-bold tracking-tight">STANDARD PROCESS & PACKING</h1>
+                            <p className="text-xs text-slate-400 font-mono">v1.2 | Online Database</p>
+                        </div>
+                        <div className="hidden sm:flex items-center gap-3">
+                            <div className="text-right">
+                                <p className="text-[10px] text-slate-400 leading-none">STATUS</p>
+                                <p className="text-xs font-bold text-green-400 tracking-widest uppercase">Connected</p>
+                            </div>
+                            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                        </div>
+                    </header>
+
+                    {/* MAIN CONTENT */}
+                    <main className="flex-grow flex flex-col md:flex-row overflow-hidden p-4 gap-4">
+                        
+                        {/* PANEL KIRI: NAVIGASI & SEARCH */}
+                        <div className="w-full md:w-80 flex flex-col gap-4 flex-shrink-0">
+                            
+                            {/* SWITCHER TIPE DOKUMEN */}
+                            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                                <label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block tracking-wider">1. Pilih Jenis Dokumen</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button 
+                                        onClick={() => setViewType("Link_Proses")}
+                                        className={`py-3 px-2 rounded-lg text-xs font-bold transition-all transform active:scale-95 ${viewType === 'Link_Proses' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                    >
+                                        PROSES
+                                    </button>
+                                    <button 
+                                        onClick={() => setViewType("Link_Packing")}
+                                        className={`py-3 px-2 rounded-lg text-xs font-bold transition-all transform active:scale-95 ${viewType === 'Link_Packing' ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                    >
+                                        PACKING
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* PENCARIAN & DAFTAR */}
+                            <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex-grow flex flex-col overflow-hidden">
+                                <label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block tracking-wider">2. Pilih Nama Customer</label>
+                                <div className="relative mb-3">
+                                    <input 
+                                        type="text"
+                                        placeholder="Ketik nama customer..."
+                                        className="w-full p-3 pl-10 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm transition-all"
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                    />
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 absolute left-3 top-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                    </svg>
+                                </div>
+                                
+                                <div className="flex-grow overflow-y-auto custom-scrollbar pt-1">
+                                    {loading ? (
+                                        <div className="flex flex-col items-center justify-center p-8 text-slate-400">
+                                            <div className="loader mb-3"></div>
+                                            <span className="text-xs">Sinkronisasi Data...</span>
+                                        </div>
+                                    ) : error ? (
+                                        <div className="p-4 text-red-500 text-xs text-center bg-red-50 rounded-lg border border-red-100 font-medium">{error}</div>
+                                    ) : filteredCustomers.length > 0 ? (
+                                        filteredCustomers.map((cust, idx) => (
+                                            <button 
+                                                key={idx}
+                                                onClick={() => setSelectedCust(cust)}
+                                                className={`w-full text-left p-3 mb-1 rounded-lg text-sm transition-all border ${selectedCust?.Customer_Name === cust.Customer_Name ? 'bg-blue-50 border-blue-200 text-blue-700 font-bold' : 'bg-white border-transparent hover:bg-slate-50 text-slate-600'}`}
+                                            >
+                                                {cust.Customer_Name}
+                                            </button>
+                                        ))
+                                    ) : (
+                                        <div className="p-8 text-slate-400 text-xs text-center italic">Tidak ada customer yang cocok.</div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* PANEL KANAN: DOCUMENT VIEWER */}
+                        <div className="flex-grow bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col relative">
+                            {selectedCust ? (
+                                <React.Fragment>
+                                    <div className="bg-slate-50 p-3 border-b border-slate-200 flex justify-between items-center px-6">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-2 h-6 rounded-full ${viewType === 'Link_Proses' ? 'bg-blue-600' : 'bg-emerald-600'}`}></div>
+                                            <h2 className="font-bold text-slate-700 uppercase tracking-wide">
+                                                {selectedCust.Customer_Name}
+                                            </h2>
+                                        </div>
+                                        <span className={`px-4 py-1 rounded-full text-[10px] font-black text-white shadow-sm ${viewType === 'Link_Proses' ? 'bg-blue-600' : 'bg-emerald-600'}`}>
+                                            {viewType === 'Link_Proses' ? 'SOP PROSES' : 'PACKING STANDARD'}
+                                        </span>
+                                    </div>
+                                    <div className="flex-grow bg-slate-200 relative group">
+                                        {/* Iframe dengan key unik untuk memaksa reload saat ganti customer/link */}
+                                        <iframe 
+                                            key={`${selectedCust.Customer_Name}-${viewType}-${selectedCust[viewType]}`}
+                                            src={formatDriveLink(selectedCust[viewType])} 
+                                            allow="autoplay"
+                                            className="w-full h-full"
+                                        ></iframe>
+                                    </div>
+                                </React.Fragment>
+                            ) : (
+                                <div className="flex flex-col h-full items-center justify-center text-slate-300 p-8 text-center bg-slate-50">
+                                    <div className="bg-white p-8 rounded-full shadow-inner mb-6">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-20 w-20 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                        </svg>
+                                    </div>
+                                    <p className="text-lg font-bold text-slate-400">Halaman Penampil Dokumen</p>
+                                    <p className="text-sm max-w-xs mx-auto">Silakan klik salah satu nama customer di panel kiri untuk membuka file standar yang diperlukan.</p>
+                                </div>
+                            )}
+                        </div>
+                    </main>
+
+                    {/* FOOTER WARNING PANEL */}
+                    <footer className={`transition-all duration-500 overflow-hidden ${selectedCust ? 'h-24' : 'h-0'}`}>
+                        <div className={`h-full border-t-4 flex items-center px-8 gap-6 shadow-2xl transition-colors duration-300 ${viewType === 'Link_Proses' ? 'bg-yellow-400 border-yellow-600' : 'bg-emerald-400 border-emerald-600'}`}>
+                            <div className="bg-white p-3 rounded-full shadow-lg border-2 border-slate-100 animate-pulse">
+                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-8 w-8 ${viewType === 'Link_Proses' ? 'text-yellow-600' : 'text-emerald-700'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                            </div>
+                            <div className="flex flex-col">
+                                <span className={`text-[10px] font-black uppercase tracking-[0.2em] mb-1 ${viewType === 'Link_Proses' ? 'text-yellow-800' : 'text-emerald-900'}`}>
+                                    CATATAN PENTING {viewType === 'Link_Proses' ? 'PROSES' : 'PACKING'}:
+                                </span>
+                                <p className="text-2xl font-black text-black leading-tight uppercase tracking-tight">
+                                    {currentWarning}
+                                </p>
+                            </div>
+                        </div>
+                    </footer>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
